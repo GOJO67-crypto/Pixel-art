@@ -32,7 +32,18 @@ const PRESET_COLORS = [
 // --- Step 1-a: Initialize the grid and canvas ---
 
 function init() {
-  // TODO: Create a 2D array filled with "#ffffff" and assign it to `grid`
+  grid = Array.from({ length: gridSize }, () =>
+    Array(gridSize).fill("#ffffff"),
+  );
+
+  cellSize = Math.floor(480 / gridSize);
+
+  canvas.width = gridSize * cellSize;
+  canvas.height = gridSize * cellSize;
+
+  render();
+}
+// TODO: Create a 2D array filled with "#ffffff" and assign it to `grid`
   // Hint: Use Array.from({ length: gridSize }, () => Array(gridSize).fill(...))
 
   // TODO: Calculate cellSize from 480 / gridSize (use Math.floor)
@@ -45,6 +56,27 @@ function init() {
 // --- Step 1-b: Render the grid onto the canvas ---
 
 function render() {
+  for (let row = 0; row < gridSize; row++) {
+    for (let col = 0; col < gridSize; col++) {
+      ctx.fillStyle = grid[row][col];
+      ctx.fillRect(col * cellSize, row * cellSize, cellSize, cellSize);
+
+      ctx.strokeStyle = "#333333";
+      ctx.lineWidth = 0.5;
+      ctx.strokeRect(col * cellSize, row * cellSize, cellSize, cellSize);
+    }
+  }
+
+  if (hoveredCell && !isDrawing) {
+    const { row, col } = hoveredCell;
+    const previewColor = currentTool === "eraser" ? "#ffffff" : currentColor;
+
+    ctx.fillStyle = previewColor;
+    ctx.globalAlpha = 0.4;
+    ctx.fillRect(col * cellSize, row * cellSize, cellSize, cellSize);
+    ctx.globalAlpha = 1.0;
+  }
+}
   // TODO: Loop through every row and column in the grid
   // For each cell:
   //   1. Set ctx.fillStyle to grid[row][col]
@@ -63,6 +95,17 @@ function render() {
 // --- Step 2-a: Map mouse position to grid cell ---
 
 function getCellFromMouse(e) {
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  const col = Math.floor(x / cellSize);
+  const row = Math.floor(y / cellSize);
+
+  if (row >= 0 && row < gridSize && col >= 0 && col < gridSize) {
+    return { row, col };
+  }
+  return null;
+}
   // TODO: Use canvas.getBoundingClientRect() to get the canvas position
   // TODO: Calculate x and y relative to the canvas
   // TODO: Convert to col and row using Math.floor(x / cellSize) and Math.floor(y / cellSize)
@@ -72,6 +115,13 @@ function getCellFromMouse(e) {
 // --- Step 2-b: Paint a single cell ---
 
 function paintCell(row, col) {
+  if (currentTool === "pen") {
+    grid[row][col] = currentColor;
+  } else if (currentTool === "eraser") {
+    grid[row][col] = "#ffffff";
+  }
+  render();
+}
   // TODO: If currentTool is "pen", set grid[row][col] to currentColor
   // TODO: If currentTool is "eraser", set grid[row][col] to "#ffffff"
   // TODO: Call render()
@@ -80,6 +130,37 @@ function paintCell(row, col) {
 // --- Step 2-c: Mouse event handlers ---
 
 canvas.addEventListener("mousedown", (e) => {
+  isDrawing = true;
+  const cell = getCellFromMouse(e);
+  if (cell) {
+    if (currentTool === "fill") {
+      floodFill(cell.row, cell.col, currentColor);
+    } else {
+      paintCell(cell.row, cell.col);
+    }
+  }
+});
+
+canvas.addEventListener("mousemove", (e) => {
+  const cell = getCellFromMouse(e);
+  hoveredCell = cell;
+
+  if (isDrawing && currentTool !== "fill" && cell) {
+    paintCell(cell.row, cell.col);
+  } else {
+    render();
+  }
+});
+
+canvas.addEventListener("mouseup", () => {
+  isDrawing = false;
+});
+
+canvas.addEventListener("mouseleave", () => {
+  isDrawing = false;
+  hoveredCell = null;
+  render();
+});
   // TODO: Set isDrawing to true
   // TODO: Get the cell from getCellFromMouse(e)
   // TODO: If cell exists:
@@ -106,6 +187,27 @@ canvas.addEventListener("mouseleave", () => {
 // --- Step 3: Flood fill algorithm ---
 
 function floodFill(row, col, newColor) {
+  const targetColor = grid[row][col];
+  if (targetColor === newColor) return;
+
+  const stack = [[row, col]];
+
+  while (stack.length > 0) {
+    const [r, c] = stack.pop();
+
+    if (r < 0 || r >= gridSize || c < 0 || c >= gridSize) continue;
+    if (grid[r][c] !== targetColor) continue;
+
+    grid[r][c] = newColor;
+
+    stack.push([r - 1, c]);
+    stack.push([r + 1, c]);
+    stack.push([r, c - 1]);
+    stack.push([r, c + 1]);
+  }
+
+  render();
+}
   // TODO: Get the targetColor from grid[row][col]
   // TODO: If targetColor equals newColor, return early (nothing to fill)
   // TODO: Create a stack array with [[row, col]]
